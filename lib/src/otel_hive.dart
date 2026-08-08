@@ -9,44 +9,55 @@ import 'hive_suppression.dart';
 const _tracerName = 'otel_hive';
 const _dbSystem = 'hive';
 
+/// The semconv registry has no attribute for a key-value store key, so
+/// this package uses a neutral, package-namespaced key for it.
+const _dbHiveKey = 'db.hive.key';
+
 Tracer _tracer() => OTel.tracerProvider().getTracer(_tracerName);
 
 Attributes _attrs({
   required String operation,
   required String boxName,
   Object? key,
+  int? batchSize,
 }) =>
     OTel.attributesFromMap(<String, Object>{
-      Database.dbSystem.key: _dbSystem,
-      Database.dbSystemName.key: _dbSystem,
-      Database.dbOperation.key: operation,
-      Database.dbOperationName.key: operation,
-      Database.dbCollectionName.key: boxName,
-      if (key != null) 'db.hive.key': key.toString(),
+      Db.dbSystemName.key: _dbSystem,
+      Db.dbOperationName.key: operation,
+      Db.dbCollectionName.key: boxName,
+      if (key != null) _dbHiveKey: key.toString(),
+      if (batchSize != null) Db.dbOperationBatchSize.key: batchSize,
     });
 
 /// Generic helper. Opens a `CLIENT` span named
-/// `hive <op> <box>[/<key>]` carrying `db.system=hive`,
-/// `db.collection.name=<box>`, and `db.hive.key=<key>` (when
-/// supplied). Runs [invoke] and ends the span on completion.
+/// `hive <op> <box>[/<key>]` carrying `db.system.name=hive`,
+/// `db.collection.name=<box>`, `db.hive.key=<key>` (when supplied),
+/// and `db.operation.batch.size=<batchSize>` (when supplied).
+/// Runs [invoke] and ends the span on completion.
 Future<R> tracedHiveCall<R>({
   required String operation,
   required String boxName,
   Object? key,
+  int? batchSize,
   required Future<R> Function() invoke,
 }) async {
   if (hiveInstrumentationSuppressed()) return invoke();
   final span = _tracer().startSpan(
     key == null ? 'hive $operation $boxName' : 'hive $operation $boxName/$key',
     kind: SpanKind.client,
-    attributes: _attrs(operation: operation, boxName: boxName, key: key),
+    attributes: _attrs(
+      operation: operation,
+      boxName: boxName,
+      key: key,
+      batchSize: batchSize,
+    ),
   );
   try {
     return await invoke();
   } catch (e, st) {
     span.addAttributes(OTel.attributes([
       OTel.attributeString(
-        ErrorResource.errorType.key,
+        ErrorAttributes.errorType.key,
         e.runtimeType.toString(),
       ),
     ]));
@@ -64,9 +75,9 @@ Future<R> tracedHiveCall<R>({
 /// synchronous in hive 2.x and are *not* wrapped here — wrapping
 /// every read would generate an excessive number of spans for
 /// minimal benefit. The async write/delete path is wrapped.
-extension OTelHiveBox on BoxBase<dynamic> {
+extension OTelHiveBox<E> on BoxBase<E> {
   /// Traced `put`.
-  Future<void> tracedPut(dynamic key, dynamic value) {
+  Future<void> tracedPut(dynamic key, E value) {
     return tracedHiveCall<void>(
       operation: 'put',
       boxName: name,
@@ -76,10 +87,11 @@ extension OTelHiveBox on BoxBase<dynamic> {
   }
 
   /// Traced `putAll`. Records the size as `db.operation.batch.size`.
-  Future<void> tracedPutAll(Map<dynamic, dynamic> entries) {
+  Future<void> tracedPutAll(Map<dynamic, E> entries) {
     return tracedHiveCall<void>(
       operation: 'putAll',
       boxName: name,
+      batchSize: entries.length,
       invoke: () => putAll(entries),
     );
   }
