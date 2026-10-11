@@ -1,7 +1,7 @@
 // Licensed under the Apache License, Version 2.0
 // Copyright 2025, Mindful Software LLC, All rights reserved.
 
-import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart';
 import 'package:hive/hive.dart';
 
 import 'hive_suppression.dart';
@@ -13,7 +13,7 @@ const _dbSystem = 'hive';
 /// this package uses a neutral, package-namespaced key for it.
 const _dbHiveKey = 'db.hive.key';
 
-Tracer _tracer() => OTel.tracerProvider().getTracer(_tracerName);
+APITracer _tracer() => OTelAPI.tracerProvider().getTracer(_tracerName);
 
 Attributes _attrs({
   required String operation,
@@ -21,7 +21,7 @@ Attributes _attrs({
   Object? key,
   int? batchSize,
 }) =>
-    OTel.attributesFromMap(<String, Object>{
+    OTelAPI.attributesFromMap(<String, Object>{
       Db.dbSystemName.key: _dbSystem,
       Db.dbOperationName.key: operation,
       Db.dbCollectionName.key: boxName,
@@ -55,8 +55,8 @@ Future<R> tracedHiveCall<R>({
   try {
     return await invoke();
   } catch (e, st) {
-    span.addAttributes(OTel.attributes([
-      OTel.attributeString(
+    span.addAttributes(OTelAPI.attributes([
+      OTelAPI.attributeString(
         ErrorAttributes.errorType.key,
         e.runtimeType.toString(),
       ),
