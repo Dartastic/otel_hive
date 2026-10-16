@@ -1,7 +1,7 @@
 name: otel_hive
-description: OpenTelemetry instrumentation for `package:hive`. Box
-  extension methods that wrap put/putAll/delete/clear/compact in
-  `db.system.name=hive` semconv CLIENT spans.
+description: >-
+  OpenTelemetry instrumentation for hive by Dartastic.io. Adds standard
+  OpenTelemetry observability to applications that use hive.
 version: 0.3.1-wip
 repository: https://github.com/dartastic/otel_hive
 homepage: https://dartastic.io
